@@ -1,0 +1,49 @@
+name: verify
+on:
+  push:
+    branches: [ci/verify-patch-bounds]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: install bokeh dev wheel and test deps
+        run: |
+          pip install --pre bokeh==4.0.0.dev8 pandas pytest pytest-asyncio pytest-timeout "ruff==0.15.*" mypy pandas-stubs types-PyYAML
+          SP=$(python -c "import bokeh,os;print(os.path.dirname(bokeh.__file__))")
+          echo "SP=$SP" >> $GITHUB_ENV
+      - name: overlay BASE python sources (branch-4.0, no fix) + new tests
+        run: |
+          git show HEAD~2:src/bokeh/models/sources.py > /tmp/base_sources.py
+          cd src/bokeh && find . -name '*.py' -exec cp --parents {} "$SP" \;
+          cp /tmp/base_sources.py "$SP/models/sources.py"
+          grep -n "col_len or" "$SP/models/sources.py"
+      - name: baseline (expect failures)
+        continue-on-error: true
+        run: python -m pytest -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function tests/unit/bokeh/models/test_sources.py -q -rf
+      - name: overlay FIXED python sources
+        run: |
+          cp src/bokeh/models/sources.py "$SP/models/sources.py"
+          grep -n "col_len or" "$SP/models/sources.py"
+      - name: fixed (expect pass)
+        run: |
+          python -m pytest -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function tests/unit/bokeh/models/test_sources.py -q
+          python -m pytest -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function tests/unit/bokeh/models/ tests/unit/bokeh/core/property/test_wrappers__property.py tests/unit/bokeh/document/ -q
+      - name: ruff (as tests/codebase/test_ruff.py)
+        run: |
+          ruff --version
+          ruff check .
+          ruff check --config src/bokeh/.ruff-tornado.toml src/bokeh
+      - name: mypy on changed modules (fix vs base)
+        continue-on-error: true
+        run: |
+          mypy --version
+          mypy --no-sqlite-cache --show-traceback > /tmp/mypy_fix.txt 2>&1 || true; tail -1 /tmp/mypy_fix.txt
+          git checkout -q HEAD~2 -- src/bokeh/models/sources.py
+          mypy --no-sqlite-cache --show-traceback > /tmp/mypy_base.txt 2>&1 || true; tail -1 /tmp/mypy_base.txt
+          grep sources.py /tmp/mypy_fix.txt | head; echo "--- diff fix vs base:"; diff /tmp/mypy_base.txt /tmp/mypy_fix.txt && echo identical
