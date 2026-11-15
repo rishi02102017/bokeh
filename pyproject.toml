@@ -261,7 +261,6 @@ module = [
     "bokeh.models.mappers",
     "bokeh.models.plots",
     "bokeh.models.tools",
-    "bokeh.plotting._figure",
     "tests.cross.*",
     "tests.unit.*",
     "tests.integration.*",
