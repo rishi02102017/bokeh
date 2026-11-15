@@ -1,0 +1,28 @@
+name: probe
+on:
+  push:
+    branches: [ci/probe-patch-bounds]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [release, dev]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: install release
+        if: matrix.target == 'release'
+        run: pip install bokeh pandas
+      - name: install dev
+        if: matrix.target == 'dev'
+        run: |
+          pip install --pre bokeh==4.0.0.dev8 pandas
+          git clone -q --depth 1 -b branch-4.0 https://github.com/bokeh/bokeh.git /tmp/bk
+          SP=$(python -c "import bokeh,os;print(os.path.dirname(bokeh.__file__))")
+          cd /tmp/bk/src/bokeh && find . -name '*.py' -exec cp --parents {} "$SP" \;
+          cd /tmp/bk && git log -1 --oneline
+      - run: python probe.py
