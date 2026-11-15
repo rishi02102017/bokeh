@@ -210,3 +210,5 @@ Bug fixes
 * Fixed property validation and warning suppression leaking between concurrent sessions (:bokeh-pull:`15548`).
 * Fixed ``row()`` and ``column()`` not applying their ``sizing_mode`` to children
   without explicit sizing, like ``layout()`` and ``gridplot()`` already do.
+* Fixed ``figure.graph()`` wrapping ``node_marker={"field": ...}`` in another field
+  specification instead of using it as a field of the node data source.
